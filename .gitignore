@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+.agent-vendor/
+.agent/
+.DS_Store
+.claude/
+

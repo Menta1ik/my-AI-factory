@@ -1,0 +1,96 @@
+# AI Factory — Skill Catalog
+#
+# This file lists every repository the factory can install.
+# To add a new skill: copy a block, change the fields, keep the indentation (2 spaces).
+# To remove a skill: delete its block.
+# Fields:
+#   name        Owner/repo on GitHub (used as identifier)
+#   url         Git clone URL
+#   method      How to install: copy | npx | pip
+#   tags        Categories — used by presets and the picker
+#   description Short one-line summary shown to the user
+
+presets:
+  software:  [base, software]
+  gamedev:   [base, gamedev]
+  full:      [base, software, gamedev]
+
+repos:
+
+  # --- Platform Core ---
+
+  - name: bmad-code-org/BMAD-METHOD
+    url: https://github.com/bmad-code-org/BMAD-METHOD.git
+    method: npx
+    tags: [base, core, methodology]
+    description: BMAD agile methodology — Analyst, Architect, Dev, QA roles
+
+  - name: vudovn/antigravity-kit
+    url: https://github.com/vudovn/antigravity-kit.git
+    method: copy
+    tags: [base, ide]
+    description: Templates and structure for Antigravity IDE
+
+  - name: VoltAgent/awesome-agent-skills
+    url: https://github.com/VoltAgent/awesome-agent-skills.git
+    method: copy
+    tags: [base, skills]
+    description: Curated collection of everyday agent skills
+
+  - name: vercel-labs/agent-browser
+    url: https://github.com/vercel-labs/agent-browser.git
+    method: copy
+    tags: [base, browser, testing]
+    description: Autonomous browser navigation and testing
+
+  # --- Software Dev Pack ---
+
+  - name: nextlevelbuilder/ui-ux-pro-max-skill
+    url: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git
+    method: copy
+    tags: [software, design, frontend]
+    description: Professional UI/UX engineering and design systems
+
+  - name: obra/superpowers
+    url: https://github.com/obra/superpowers.git
+    method: copy
+    tags: [software, productivity]
+    description: Enhanced multi-step agent capabilities
+
+  - name: coreyhaines31/marketingskills
+    url: https://github.com/coreyhaines31/marketingskills.git
+    method: copy
+    tags: [software, marketing, content]
+    description: Marketing strategies, SEO, and copywriting
+
+  - name: safishamsi/graphify
+    url: https://github.com/safishamsi/graphify.git
+    method: pip
+    tags: [software, architecture, visualization]
+    description: Visualize project architecture and dependencies
+
+  - name: pbakaus/impeccable
+    url: https://github.com/pbakaus/impeccable.git
+    method: copy
+    tags: [software, frontend, quality]
+    description: Frontend quality standards and CSS auditing
+
+  # --- Game Dev Pack ---
+
+  - name: bmad-code-org/bmad-module-game-dev-studio
+    url: https://github.com/bmad-code-org/bmad-module-game-dev-studio.git
+    method: npx
+    tags: [gamedev, methodology]
+    description: BMAD module — Game Designer, Level Designer, Art Director
+
+  - name: Donchitos/Claude-Code-Game-Studios
+    url: https://github.com/Donchitos/Claude-Code-Game-Studios.git
+    method: copy
+    tags: [gamedev, workflow]
+    description: Workflows and processes for game studios
+
+  - name: JuliusBrussee/caveman
+    url: https://github.com/JuliusBrussee/caveman.git
+    method: copy
+    tags: [gamedev, engine]
+    description: Reference utilities for game engines
