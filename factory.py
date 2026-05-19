@@ -17,7 +17,7 @@ import threading
 import itertools
 from pathlib import Path
 
-VERSION = "1.2.0-core"
+VERSION = "1.3.0-core"
 
 CATALOG_FILE = "catalog.yaml"
 
@@ -291,6 +291,7 @@ class Factory:
         self.shared_dir = self.agent_dir / ".shared"
         self.bmad_config_dir = self.agent_dir / "_bmad" / "_config"
         self.catalog_repos, self.presets = load_catalog(self.target_dir)
+        self.subpaths = {r["name"]: r["subpath"] for r in self.catalog_repos if r.get("subpath")}
         self.config_path = self.target_dir / "factory.config.json"
         self.config = self._load_config()
         self.lock_path = self.target_dir / "factory.lock.json"
@@ -739,9 +740,24 @@ class Factory:
 
         for name, url, pkg, method in self.repos:
             src = self.vendor_dir / name
+            subpath = self.subpaths.get(name)
             if method == "copy":
                 UI.step(f"Injecting {name}")
-                
+
+                # Subpath mode: the catalog points to a specific skill folder inside the repo.
+                # Copy that folder as a single skill — no smart-routing, no full-repo .md scan.
+                if subpath:
+                    src_skill = src / subpath
+                    if not src_skill.exists():
+                        UI.error(f"{name}: subpath '{subpath}' not found in repo")
+                        continue
+                    skill_id = src_skill.name
+                    dest = self.skills_dir / skill_id
+                    dest.mkdir(parents=True, exist_ok=True)
+                    shutil.copytree(src_skill, dest, dirs_exist_ok=True, copy_function=safe_copy, symlinks=False)
+                    UI.success(f"Module Ready: {name} → {skill_id}")
+                    continue
+
                 # Smart routing for both .agent structure and flat repositories
                 base_dirs_to_check = [src, src / ".agent"]
                 routed_dirs: set[Path] = set()
@@ -949,7 +965,25 @@ class Factory:
         orch_path = self.agent_dir / "orchestrator.md"
         orch_body = f"## Protocols\n- **Atomic Operation**: BMAD Roles.\n- **Cognitive Sync**: CONTEXT.md.\n\n## Roles\n{role_table}\n\n## Skill Matrix\n{skill_catalog_md}"
         self._write_managed_config(orch_path, "Master Neural Orchestrator", orch_body)
+
+        self._generate_cursor_rules(skills)
         UI.success("Workspace configuration: Optimized")
+
+    def _generate_cursor_rules(self, skills):
+        """Project one .mdc file per skill into .cursor/rules/ (Agent Requested mode)."""
+        rules_dir = self.target_dir / ".cursor" / "rules"
+        rules_dir.mkdir(parents=True, exist_ok=True)
+
+        for s in skills:
+            src_path = s["path"]
+            try:
+                content = src_path.read_text(errors='ignore')
+            except OSError:
+                continue
+            body = re.sub(r'^---\s*\n.*?\n---\s*\n', '', content, count=1, flags=re.DOTALL).lstrip()
+            desc = (s.get("desc") or "").replace('"', "'").strip().splitlines()[0] if s.get("desc") else ""
+            frontmatter = f"---\ndescription: \"{desc}\"\nalwaysApply: false\n---\n\n"
+            (rules_dir / f"{s['id']}.mdc").write_text(frontmatter + body)
 
     def create_shared_placeholders(self):
         (self.shared_dir / "CONTEXT.md").write_text("# Project Context\n\n## Mission\nDefine objectives.")

@@ -84,6 +84,7 @@ We have selected and integrated the best tools for every stage of development:
 *   **[Impeccable CSS](https://github.com/pbakaus/impeccable):** Frontend quality standards and auditing.
 *   **[Superpowers](https://github.com/obra/superpowers):** Enhanced agent capabilities for executing complex multi-step tasks.
 *   **[Graphify](https://github.com/safishamsi/graphify):** Visualization of your project's architecture and dependencies.
+*   **[Frontend Design](https://github.com/anthropics/claude-code/tree/main/plugins/frontend-design) (Anthropic):** Production-grade UI design guidelines — pulled from a single subfolder of the `anthropics/claude-code` monorepo via the new `subpath:` field.
 
 ### 🎮 "Game Dev" Pack
 *   **[BMAD Game Studio](https://github.com/bmad-code-org/bmad-module-game-dev-studio):** Specialized roles for game development: Game Designer, Level Designer, Art Director.
@@ -142,6 +143,8 @@ The factory is built on the Unix philosophy: managed external assets are strictl
     `CONTEXT.md` (project mission), `TASKS.md` (work queue), `DECISIONS.md` (decision log). These represent the live state of your project. Agents read them on startup and append to them as they work. The factory never overwrites them after first creation.
 *   **Root config files (`CLAUDE.md` / `GEMINI.md` / `.antigravity.md` / `.agent/orchestrator.md`)**
     Each contains a managed block bracketed by `<!-- AI-FACTORY:BEGIN -->` and `<!-- AI-FACTORY:END -->`. The factory only rewrites what's *inside* those markers. Anything you add above or below them survives every `update`. The first time the factory sees a pre-marker file with your edits, it backs the old version up before adopting the marker scheme.
+*   **Cursor rules (`.cursor/rules/<skill-id>.mdc`)**
+    For every discovered skill, the factory writes a `.mdc` file with `description` + `alwaysApply: false` (Cursor's "Agent Requested" mode — the agent pulls the rule in when it's relevant). The body is the skill's source `SKILL.md`. One skill = one `.mdc`, mirroring the `.claude/skills/` layout, so the same skill works in Claude Code and Cursor without manual porting.
 
 ### The install lifecycle, step by step
 
@@ -153,7 +156,7 @@ When you run `install`:
 4. **Assets routed.** Repo contents are smart-routed into the unified `.agent/` layout: `agents/` to `agents/`, `workflows/` to `workflows/`, etc. Standalone Markdown files become entries under `skills/`.
 5. **Python packages installed.** Repos with `method: pip` (like `graphify`) are installed via `pip3 install -e`. If your system Python is locked down (PEP 668 / macOS), the factory transparently creates `.agent-vendor/.venv/` and installs there.
 6. **Bridges built.** Every skill gets a symlink in `.agent/.claude/skills/<id>/SKILL.md` so Claude Code picks it up as a native tool.
-7. **Manifests compiled.** `CLAUDE.md`, `GEMINI.md`, `.antigravity.md`, and `.agent/orchestrator.md` are regenerated (only the managed block is touched — your edits outside it are preserved).
+7. **Manifests compiled.** `CLAUDE.md`, `GEMINI.md`, `.antigravity.md`, and `.agent/orchestrator.md` are regenerated (only the managed block is touched — your edits outside it are preserved). One `.mdc` per skill is also written into `.cursor/rules/` so Cursor picks up the same skill set.
 8. **Lock saved.** `factory.lock.json` is written with each repo's resolved SHA and timestamp.
 
 `update` does the same thing, except step 3 always pulls HEAD and step 8 *replaces* the lock. `integrate` skips git entirely and just rebuilds bridges and manifests — useful when you've added your own skill manually to `custom/`.
@@ -199,10 +202,11 @@ my-project/
 │
 ├── CLAUDE.md                  ← Auto-generated config for Claude Code
 ├── GEMINI.md                  ← Auto-generated config for Gemini CLI
-└── .antigravity.md            ← Auto-generated config for Antigravity IDE
+├── .antigravity.md            ← Auto-generated config for Antigravity IDE
+└── .cursor/rules/             ← Auto-generated .mdc rules for Cursor (one per skill)
 ```
 
-**What to commit:** `.agent/`, `factory.config.json`, `factory.lock.json`, the root `*.md` files.
+**What to commit:** `.agent/`, `factory.config.json`, `factory.lock.json`, the root `*.md` files, `.cursor/rules/`.
 **What to gitignore:** `.agent-vendor/` (it's a 100+ MB cache — fully reproducible from the lock).
 
 ---
@@ -299,6 +303,21 @@ To make a new skill installable for everyone, open `my-AI-factory/catalog.yaml` 
 ```
 
 Then run `python3 factory.py install` (or `add yourname/your-skill-repo`) and it gets picked up like any other skill. Send a PR to `catalog.yaml` to share it with the community — no code changes required.
+
+### Installing a single skill from a monorepo
+
+Some repos (like `anthropics/claude-code`) bundle many independent skills. Use the optional `subpath:` field to install just one folder instead of dragging in the whole repo:
+
+```yaml
+  - name: anthropics/claude-code
+    url: https://github.com/anthropics/claude-code.git
+    method: copy
+    subpath: plugins/frontend-design/skills/frontend-design
+    tags: [software, frontend, design]
+    description: Anthropic frontend-design skill
+```
+
+When `subpath:` is set, the factory copies that folder verbatim into `.agent/skills/<folder-name>/` as a single skill. Smart-routing and the full-repo Markdown scan are skipped — you get exactly the skill folder and nothing else.
 
 ---
 
