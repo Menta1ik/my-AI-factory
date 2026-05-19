@@ -5,7 +5,7 @@
 *A package manager for AI agents — curate, install, version, and orchestrate.*
 
 [![Python](https://img.shields.io/badge/python-3.8+-5EE2FF?style=for-the-badge&logo=python&logoColor=white&labelColor=0B0F17)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.2.0--core-8B5CF6?style=for-the-badge&labelColor=0B0F17)](https://github.com/Menta1ik/my-AI-factory)
+[![Version](https://img.shields.io/badge/version-1.3.0--core-8B5CF6?style=for-the-badge&labelColor=0B0F17)](https://github.com/Menta1ik/my-AI-factory)
 [![Zero Deps](https://img.shields.io/badge/dependencies-zero-D946EF?style=for-the-badge&labelColor=0B0F17)](https://github.com/Menta1ik/my-AI-factory)
 [![Stars](https://img.shields.io/github/stars/Menta1ik/my-AI-factory?style=for-the-badge&color=4F8CFF&labelColor=0B0F17&logo=github)](https://github.com/Menta1ik/my-AI-factory/stargazers)
 [![Last Commit](https://img.shields.io/github/last-commit/Menta1ik/my-AI-factory?style=for-the-badge&color=5EE2FF&labelColor=0B0F17)](https://github.com/Menta1ik/my-AI-factory/commits/main)
