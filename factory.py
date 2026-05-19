@@ -288,6 +288,7 @@ class Factory:
         self.agent_dir = self.target_dir / ".agent"
         self.skills_dir = self.agent_dir / "skills"
         self.claude_skills_dir = self.agent_dir / ".claude" / "skills"
+        self.cursor_skills_dir = self.target_dir / ".cursor" / "skills"
         self.shared_dir = self.agent_dir / ".shared"
         self.bmad_config_dir = self.agent_dir / "_bmad" / "_config"
         self.catalog_repos, self.presets = load_catalog(self.target_dir)
@@ -609,7 +610,8 @@ class Factory:
             self.agent_dir / "agents",
             self.agent_dir / "workflows",
             self.agent_dir / "tools",
-            self.agent_dir / "rules"
+            self.agent_dir / "rules",
+            self.agent_dir / "commands"
         ]
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
@@ -766,7 +768,7 @@ class Factory:
                 for base_dir in base_dirs_to_check:
                     if not base_dir.exists(): continue
 
-                    for folder in ["agents", "workflows", "flows", "rules", "tools", "skills"]:
+                    for folder in ["agents", "workflows", "flows", "rules", "tools", "skills", "commands"]:
                         src_folder = base_dir / folder
                         if src_folder.exists() and src_folder.is_dir():
                             dest_folder = self.agent_dir / folder
@@ -835,23 +837,40 @@ class Factory:
                             "id": agent_id,
                             "name": metadata.get("name", agent_id.replace("-", " ").title()),
                             "desc": metadata.get("description", "Specialized Agent Persona"),
-                            "path": agent_file
+                            "path": agent_file,
+                            "kind": "agent",
                         })
 
-        # 3. Fallback: Skills Directory
+        # 3. Commands Directory (explicit-invoke artefacts from plugins like commit-commands)
+        commands_dir = self.agent_dir / "commands"
+        if commands_dir.exists():
+            for cmd_file in commands_dir.glob("*.md"):
+                cmd_id = cmd_file.stem
+                if cmd_id in seen_ids: continue
+                seen_ids.add(cmd_id)
+                metadata = self.extract_metadata(cmd_file)
+                discovered_skills.append({
+                    "id": cmd_id,
+                    "name": metadata.get("name", cmd_id.replace("-", " ").title()),
+                    "desc": metadata.get("description", "Slash command"),
+                    "path": cmd_file,
+                    "kind": "command",
+                })
+
+        # 4. Fallback: Skills Directory
         if self.skills_dir.exists():
             for skill_folder in self.skills_dir.iterdir():
                 if not skill_folder.is_dir() or skill_folder.name.startswith("."): continue
-                
+
                 skill_id = skill_folder.name
                 if skill_id in seen_ids: continue
-                
+
                 skill_file = skill_folder / "SKILL.md"
                 if not skill_file.exists(): skill_file = skill_folder / "README.md"
                 if not skill_file.exists():
                     md_files = list(skill_folder.glob("*.md"))
                     if md_files: skill_file = md_files[0]
-                
+
                 if skill_file and skill_file.exists():
                     seen_ids.add(skill_id)
                     metadata = self.extract_metadata(skill_file)
@@ -859,7 +878,8 @@ class Factory:
                         "id": skill_id,
                         "name": metadata.get("name", skill_folder.name),
                         "desc": metadata.get("description", "No description available."),
-                        "path": skill_file
+                        "path": skill_file,
+                        "kind": "skill",
                     })
 
         with Spinner("Building Claude Code bridge"):
@@ -966,13 +986,17 @@ class Factory:
         orch_body = f"## Protocols\n- **Atomic Operation**: BMAD Roles.\n- **Cognitive Sync**: CONTEXT.md.\n\n## Roles\n{role_table}\n\n## Skill Matrix\n{skill_catalog_md}"
         self._write_managed_config(orch_path, "Master Neural Orchestrator", orch_body)
 
-        self._generate_cursor_rules(skills)
+        self._project_cursor_skills(skills)
         UI.success("Workspace configuration: Optimized")
 
-    def _generate_cursor_rules(self, skills):
-        """Project one .mdc file per skill into .cursor/rules/ (Agent Requested mode)."""
-        rules_dir = self.target_dir / ".cursor" / "rules"
-        rules_dir.mkdir(parents=True, exist_ok=True)
+    def _project_cursor_skills(self, skills):
+        """Project each discovered item into .cursor/skills/<id>/SKILL.md (native Cursor format).
+
+        Cursor 2.3.35+ uses the same SKILL.md layout as Claude Code. Skills are auto-invoked
+        from `description`; agents and commands are wrapped with `disable-model-invocation: true`
+        so they only fire on explicit `/<id>` (matches Cursor's built-in /migrate-to-skills).
+        """
+        self.cursor_skills_dir.mkdir(parents=True, exist_ok=True)
 
         for s in skills:
             src_path = s["path"]
@@ -980,10 +1004,25 @@ class Factory:
                 content = src_path.read_text(errors='ignore')
             except OSError:
                 continue
+
             body = re.sub(r'^---\s*\n.*?\n---\s*\n', '', content, count=1, flags=re.DOTALL).lstrip()
-            desc = (s.get("desc") or "").replace('"', "'").strip().splitlines()[0] if s.get("desc") else ""
-            frontmatter = f"---\ndescription: \"{desc}\"\nalwaysApply: false\n---\n\n"
-            (rules_dir / f"{s['id']}.mdc").write_text(frontmatter + body)
+            desc_raw = (s.get("desc") or "").strip()
+            desc = desc_raw.splitlines()[0].replace('"', "'") if desc_raw else f"{s.get('name', s['id'])}"
+            kind = s.get("kind", "skill")
+
+            fm_lines = [
+                "---",
+                f"name: {s['id']}",
+                f'description: "{desc}"',
+            ]
+            if kind in ("agent", "command"):
+                fm_lines.append("disable-model-invocation: true")
+            fm_lines.append("---")
+            frontmatter = "\n".join(fm_lines) + "\n\n"
+
+            skill_dir = self.cursor_skills_dir / s["id"]
+            skill_dir.mkdir(parents=True, exist_ok=True)
+            (skill_dir / "SKILL.md").write_text(frontmatter + body)
 
     def create_shared_placeholders(self):
         (self.shared_dir / "CONTEXT.md").write_text("# Project Context\n\n## Mission\nDefine objectives.")

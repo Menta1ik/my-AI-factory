@@ -9,16 +9,19 @@
 [![Zero Deps](https://img.shields.io/badge/dependencies-zero-D946EF?style=for-the-badge&labelColor=0B0F17)](https://github.com/Menta1ik/my-AI-factory)
 [![Stars](https://img.shields.io/github/stars/Menta1ik/my-AI-factory?style=for-the-badge&color=4F8CFF&labelColor=0B0F17&logo=github)](https://github.com/Menta1ik/my-AI-factory/stargazers)
 [![Last Commit](https://img.shields.io/github/last-commit/Menta1ik/my-AI-factory?style=for-the-badge&color=5EE2FF&labelColor=0B0F17)](https://github.com/Menta1ik/my-AI-factory/commits/main)
+[![BMAD Method](https://img.shields.io/badge/Methodology-BMAD-8B5CF6?style=for-the-badge&labelColor=0B0F17)](https://github.com/bmad-code-org/BMAD-METHOD)
 
 [![Claude Code](https://img.shields.io/badge/Claude_Code-ready-D97757?style=for-the-badge&logo=anthropic&logoColor=white&labelColor=0B0F17)](https://claude.com/claude-code)
 [![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-ready-4F8CFF?style=for-the-badge&logo=google&logoColor=white&labelColor=0B0F17)](https://github.com/google-gemini/gemini-cli)
+[![Cursor](https://img.shields.io/badge/Cursor-ready-000000?style=for-the-badge&logo=cursor&logoColor=white&labelColor=0B0F17)](https://cursor.com/)
+[![Windsurf](https://img.shields.io/badge/Windsurf-ready-000000?style=for-the-badge&logo=codeium&logoColor=white&labelColor=0B0F17)](https://codeium.com/windsurf)
 [![Antigravity](https://img.shields.io/badge/Antigravity-ready-8B5CF6?style=for-the-badge&labelColor=0B0F17)](https://github.com/vudovn/antigravity-kit)
 
 </div>
 
 **My AI Factory** is a high-tech AI development ecosystem that transforms your project into an intelligent hub. It automatically deploys, links, and orchestrates world-class AI best practices and tools into a single, unified workspace.
 
-The intelligent Python-based installer provides seamless integration across three environments: **Gemini CLI**, **Claude Code**, and **Antigravity IDE**.
+The intelligent Python-based installer provides seamless integration across five environments: **Gemini CLI**, **Claude Code**, **Cursor**, **Windsurf**, and **Antigravity IDE**.
 
 ---
 
