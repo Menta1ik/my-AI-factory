@@ -9,6 +9,10 @@
 #   method      How to install: copy | npx | pip
 #   tags        Categories — used by presets and the picker
 #   description Short one-line summary shown to the user
+#   subpath     (optional) Path inside the repo to a single skill folder.
+#               When set, only that folder is installed (skips smart-routing
+#               and full-repo .md scan). Use for monorepos like
+#               anthropics/claude-code that contain many skills.
 
 presets:
   software:  [base, software]
@@ -74,6 +78,13 @@ repos:
     method: copy
     tags: [software, frontend, quality]
     description: Frontend quality standards and CSS auditing
+
+  - name: anthropics/claude-code
+    url: https://github.com/anthropics/claude-code.git
+    method: copy
+    subpath: plugins/frontend-design/skills/frontend-design
+    tags: [software, frontend, design]
+    description: Anthropic frontend-design skill — distinctive, production-grade UI guidelines
 
   # --- Game Dev Pack ---
 
