@@ -5,7 +5,7 @@
 *A package manager for AI agents — curate, install, version, and orchestrate.*
 
 [![Python](https://img.shields.io/badge/python-3.8+-5EE2FF?style=for-the-badge&logo=python&logoColor=white&labelColor=0B0F17)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.3.0--core-8B5CF6?style=for-the-badge&labelColor=0B0F17)](https://github.com/Menta1ik/my-AI-factory)
+[![Version](https://img.shields.io/badge/version-1.5.0--core-8B5CF6?style=for-the-badge&labelColor=0B0F17)](https://github.com/Menta1ik/my-AI-factory)
 [![Zero Deps](https://img.shields.io/badge/dependencies-zero-D946EF?style=for-the-badge&labelColor=0B0F17)](https://github.com/Menta1ik/my-AI-factory)
 [![Stars](https://img.shields.io/github/stars/Menta1ik/my-AI-factory?style=for-the-badge&color=4F8CFF&labelColor=0B0F17&logo=github)](https://github.com/Menta1ik/my-AI-factory/stargazers)
 [![Last Commit](https://img.shields.io/github/last-commit/Menta1ik/my-AI-factory?style=for-the-badge&color=5EE2FF&labelColor=0B0F17)](https://github.com/Menta1ik/my-AI-factory/commits/main)
@@ -21,7 +21,35 @@
 
 **My AI Factory** is a high-tech AI development ecosystem that transforms your project into an intelligent hub. It automatically deploys, links, and orchestrates world-class AI best practices and tools into a single, unified workspace.
 
-The intelligent Python-based installer provides seamless integration across five environments: **Gemini CLI**, **Claude Code**, **Cursor**, **Windsurf**, and **Antigravity IDE**.
+The intelligent Python-based installer provides seamless integration across **all leading environments**: **Gemini CLI**, **Claude Code**, **Cursor**, **Windsurf**, **OpenHands**, **OpenCode**, and **Antigravity IDE**.
+
+---
+
+## 🆕 What's New in v1.5.0-core (Release Update)
+
+We are excited to introduce a major release **v1.5.0-core** that elevates the project's cognitive architecture management to an entirely new level of stability, flexibility, and scalability!
+
+### 🚀 Key Improvements & Advantages:
+
+1. **Support for Modern AI Environments (Surfaces):**
+   * **OpenHands** & **OpenCode**: The installer now automatically compiles and deploys targeted system-level instructions and rules into `.openhands/skills/`, `.openhands/microagents/`, and `.opencode/agents/`.
+   * **Claude Code**: Native integration via symlinks in `.agent/.claude/skills/` ensures instant discovery and execution of installed skills.
+   * **Cursor & Windsurf**: Dedicated `.mdc` rules are compiled for each active library and automatically pulled in by the editor in "Agent Requested" mode.
+
+2. **Advanced `vendor_as` & `subpath` Monorepo Mechanics:**
+   * No need to clone giant repositories for a single script. The `subpath` directive lets you import specific skill folders (e.g., `canvas-design` or `mcp-builder` from the Anthropic skills monorepo).
+   * The `vendor_as` directive groups different subpath items sharing the same parent repository under a single local clone, saving time and disk space.
+
+3. **Robust Project-wide Cleanup on Removal (`cmd_remove`):**
+   * **Before:** When removing a skill installed via `subpath` (like `canvas-design`), the directory remained on disk because the system looked for the generated safe catalog name (`anthropics-skills-canvas-design`).
+   * **Now:** The `cmd_remove` logic has been redesigned. It resolves the actual directory name using `Path(subpath).name` (yielding `canvas-design`), guaranteeing **100% cleanup of all 16 file projections** across all connected IDEs and CLI platforms.
+
+4. **Streamlined Catalog & Focus on Developer Essentials:**
+   * Excluded redundant office utility skills (`docx`, `pdf`, `pptx`, `xlsx`) and the experimental `skill-creator` utility from `catalog.yaml`.
+   * Maintained and polished production-ready developer tools, including Anthropic's MCP Builder (`mcp-builder`), Canvas UI renderer (`canvas-design`), Vercel standards, and elite design systems.
+
+5. **Pure Zero-Dependency Architecture:**
+   * Absolutely zero third-party Python package dependencies. All YAML parsing, symlink routing, manifest compilation, and file backups are handled out-of-the-box by Python 3 standard library.
 
 ---
 
@@ -87,7 +115,9 @@ We have selected and integrated the best tools for every stage of development:
 *   **[Impeccable CSS](https://github.com/pbakaus/impeccable):** Frontend quality standards and auditing.
 *   **[Superpowers](https://github.com/obra/superpowers):** Enhanced agent capabilities for executing complex multi-step tasks.
 *   **[Graphify](https://github.com/safishamsi/graphify):** Visualization of your project's architecture and dependencies.
-*   **[Frontend Design](https://github.com/anthropics/claude-code/tree/main/plugins/frontend-design) (Anthropic):** Production-grade UI design guidelines — pulled from a single subfolder of the `anthropics/claude-code` monorepo via the new `subpath:` field.
+*   **[Frontend Design](https://github.com/anthropics/claude-code/tree/main/plugins/frontend-design) (Anthropic):** Production-grade UI design guidelines — pulled from the `anthropics/claude-code` monorepo via the `subpath:` field.
+*   **[MCP Builder](https://github.com/anthropics/skills/tree/main/skills/mcp-builder) (Anthropic):** A template and set of guidelines for building custom Model Context Protocol (MCP) servers in Python or TypeScript. Pulled from the `anthropics/skills` monorepo via `subpath:`.
+*   **[Canvas Design](https://github.com/anthropics/skills/tree/main/skills/canvas-design) (Anthropic):** Best practices and code patterns for generating clean PNG/PDF deliverables using AI agents. Pulled from the `anthropics/skills` monorepo via `subpath:`.
 
 ### 🎮 "Game Dev" Pack
 *   **[BMAD Game Studio](https://github.com/bmad-code-org/bmad-module-game-dev-studio):** Specialized roles for game development: Game Designer, Level Designer, Art Director.
@@ -113,13 +143,17 @@ Unlike a shell script that copies files, the factory is a small package manager 
 6.  **Auto-generated orchestrator workflow.**
     Drops a ready-to-run `pipeline.md` that links Analyst → Architect → Developer → QA into a single autonomous feature loop.
 7.  **Native Claude Code integration.**
-    Symlinks every skill into `.agent/.claude/skills/` so Claude Code sees them as first-class tools without any extra config.
+    Symlinks every skill into `.agent/.claude/skills/` so Claude Code sees them as first-class tools without any extra configuration.
 8.  **Unified skill catalog for Gemini CLI & Antigravity.**
-    Generates `GEMINI.md` and `.antigravity.md` with the full installed-skill list, BMAD roles, and startup instructions, so any tool can pick up the same context.
+    Generates `GEMINI.md` and `.antigravity.md` with the full list of installed skills, BMAD roles, and startup instructions, allowing any tool to seamlessly adopt the exact same environment state.
 9.  **Safe re-runs.**
     Root config files use `<!-- AI-FACTORY:BEGIN/END -->` markers. Anything you write *outside* those markers survives every `update`. Pre-marker files are backed up to `.agent-vendor/.backups/YYYY-MM-DD/` before being upgraded.
 10. **Isolated Python deps.**
     Skills shipped as Python packages (e.g. `graphify`) install into `.agent-vendor/.venv/`, never into your system Python. No PEP 668 errors on macOS, no version clashes.
+11. **Native OpenHands & OpenCode integrations.**
+    Automatically compiles and deploys targeted system-level prompts and rules directly into `.openhands/skills/`, `.openhands/microagents/`, and `.opencode/agents/` so these environments instantly pick up newly-added capabilities.
+12. **Precise cleanup on removal.**
+    Robust uninstallation via `cmd_remove` that cleans up both the main catalog identifier and custom `subpath` final segments (like `canvas-design`). Safely drops and cleans all associated rule projections (`.mdc` / `.md` files) across 16 different locations in all supported coding surfaces.
 
 ---
 
@@ -146,8 +180,8 @@ The factory is built on the Unix philosophy: managed external assets are strictl
     `CONTEXT.md` (project mission), `TASKS.md` (work queue), `DECISIONS.md` (decision log). These represent the live state of your project. Agents read them on startup and append to them as they work. The factory never overwrites them after first creation.
 *   **Root config files (`CLAUDE.md` / `GEMINI.md` / `.antigravity.md` / `.agent/orchestrator.md`)**
     Each contains a managed block bracketed by `<!-- AI-FACTORY:BEGIN -->` and `<!-- AI-FACTORY:END -->`. The factory only rewrites what's *inside* those markers. Anything you add above or below them survives every `update`. The first time the factory sees a pre-marker file with your edits, it backs the old version up before adopting the marker scheme.
-*   **Cursor rules (`.cursor/rules/<skill-id>.mdc`)**
-    For every discovered skill, the factory writes a `.mdc` file with `description` + `alwaysApply: false` (Cursor's "Agent Requested" mode — the agent pulls the rule in when it's relevant). The body is the skill's source `SKILL.md`. One skill = one `.mdc`, mirroring the `.claude/skills/` layout, so the same skill works in Claude Code and Cursor without manual porting.
+*   **Multi-Surface Rules & Projections (`.cursor/rules/*.mdc`, `.openhands/skills/*.md`, `.openhands/microagents/*.md`, `.opencode/agents/*.md`)**
+    For every discovered skill, the factory writes and deploys rule definitions across multiple environments. For Cursor/Windsurf, it generates `.mdc` files with `description` and `alwaysApply: false` (Agent-Requested mode). For OpenHands and OpenCode, it compiles native `.md` rule documents. This guarantees that all tools (Claude Code, Cursor, Windsurf, OpenHands, OpenCode, Gemini CLI, Antigravity) use exactly matching prompt contexts.
 
 ### The install lifecycle, step by step
 
@@ -158,8 +192,8 @@ When you run `install`:
 3. **Repos cloned.** Each repo is cloned into `.agent-vendor/<owner>/<repo>/`. If `factory.lock.json` exists, the exact SHAs from the lock are checked out — no surprises from upstream. Otherwise, HEAD is fetched and recorded into the lock.
 4. **Assets routed.** Repo contents are smart-routed into the unified `.agent/` layout: `agents/` to `agents/`, `workflows/` to `workflows/`, etc. Standalone Markdown files become entries under `skills/`.
 5. **Python packages installed.** Repos with `method: pip` (like `graphify`) are installed via `pip3 install -e`. If your system Python is locked down (PEP 668 / macOS), the factory transparently creates `.agent-vendor/.venv/` and installs there.
-6. **Bridges built.** Every skill gets a symlink in `.agent/.claude/skills/<id>/SKILL.md` so Claude Code picks it up as a native tool.
-7. **Manifests compiled.** `CLAUDE.md`, `GEMINI.md`, `.antigravity.md`, and `.agent/orchestrator.md` are regenerated (only the managed block is touched — your edits outside it are preserved). One `.mdc` per skill is also written into `.cursor/rules/` so Cursor picks up the same skill set.
+6. **Bridges & Symlinks built.** Every skill gets a native symlink in `.agent/.claude/skills/<id>/SKILL.md` for seamless Claude Code native tool execution.
+7. **Manifests & Prompts compiled.** `CLAUDE.md`, `GEMINI.md`, `.antigravity.md`, and `.agent/orchestrator.md` are regenerated (preserving custom edits outside the AI-FACTORY markers). Multi-surface files (such as Cursor `.mdc` rules, OpenCode agent files, and OpenHands skill documents) are also written and synchronized.
 8. **Lock saved.** `factory.lock.json` is written with each repo's resolved SHA and timestamp.
 
 `update` does the same thing, except step 3 always pulls HEAD and step 8 *replaces* the lock. `integrate` skips git entirely and just rebuilds bridges and manifests — useful when you've added your own skill manually to `custom/`.

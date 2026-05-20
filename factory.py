@@ -17,7 +17,7 @@ import threading
 import itertools
 from pathlib import Path
 
-VERSION = "1.3.0-core"
+VERSION = "1.5.0-core"
 
 CATALOG_FILE = "catalog.yaml"
 
@@ -289,10 +289,19 @@ class Factory:
         self.skills_dir = self.agent_dir / "skills"
         self.claude_skills_dir = self.agent_dir / ".claude" / "skills"
         self.cursor_skills_dir = self.target_dir / ".cursor" / "skills"
+        self.cursor_rules_dir = self.target_dir / ".cursor" / "rules"
+        # New in v1.5.0: additional coding-agent surfaces.
+        self.codex_skills_dir = self.target_dir / ".codex" / "skills"
+        self.opencode_agents_dir = self.target_dir / ".opencode" / "agents"
+        self.openhands_skills_dir = self.target_dir / ".openhands" / "skills"
+        self.openhands_microagents_dir = self.target_dir / ".openhands" / "microagents"
         self.shared_dir = self.agent_dir / ".shared"
         self.bmad_config_dir = self.agent_dir / "_bmad" / "_config"
         self.catalog_repos, self.presets = load_catalog(self.target_dir)
         self.subpaths = {r["name"]: r["subpath"] for r in self.catalog_repos if r.get("subpath")}
+        # vendor_as: optional override so multiple catalog entries can share one clone.
+        # Falls back to the entry's name (which is the historical behaviour).
+        self.vendor_as = {r["name"]: r.get("vendor_as", r["name"]) for r in self.catalog_repos}
         self.config_path = self.target_dir / "factory.config.json"
         self.config = self._load_config()
         self.lock_path = self.target_dir / "factory.lock.json"
@@ -417,17 +426,52 @@ class Factory:
         self._save_config()
         self.repos = self._resolve_repos()
 
-        vendor_path = self.vendor_dir / name
-        if vendor_path.exists():
-            shutil.rmtree(vendor_path, ignore_errors=True)
-        if self.lock.get("repos", {}).get(name):
-            del self.lock["repos"][name]
-            self._save_lock()
+        # vendor folder is keyed by vendor_as (may be shared with siblings).
+        vendor_key = self.vendor_as.get(name, name)
+        # Only remove vendor folder if no other enabled entry still points at it.
+        siblings = [n for n, _, _, _ in self.repos if self.vendor_as.get(n, n) == vendor_key and n != name]
+        if not siblings:
+            vendor_path = self.vendor_dir / vendor_key
+            if vendor_path.exists():
+                shutil.rmtree(vendor_path, ignore_errors=True)
+            if self.lock.get("repos", {}).get(vendor_key):
+                del self.lock["repos"][vendor_key]
+                self._save_lock()
 
-        safe_name = name.replace("/", "-")
-        skill_path = self.skills_dir / safe_name
-        if skill_path.exists():
-            shutil.rmtree(skill_path, ignore_errors=True)
+        # For subpath entries the on-disk skill folder is named after the
+        # final subpath segment (e.g. .agent/skills/canvas-design), not after
+        # the catalog name. Use both candidates.
+        subpath = self.subpaths.get(name)
+        skill_id = Path(subpath).name if subpath else name.replace("/", "-")
+        fallback_id = name.replace("/", "-")
+
+        for candidate in (skill_id, fallback_id):
+            skill_path = self.skills_dir / candidate
+            if skill_path.exists():
+                shutil.rmtree(skill_path, ignore_errors=True)
+
+        # Also drop projections in every coding-agent surface so a re-`add`
+        # starts from a clean slate.
+        for candidate_id in {skill_id, fallback_id}:
+            slug = self._safe_skill_name(candidate_id)
+            for d in (
+                self.cursor_skills_dir / slug,
+                self.codex_skills_dir / slug,
+                self.claude_skills_dir / slug,
+            ):
+                if d.exists():
+                    shutil.rmtree(d, ignore_errors=True)
+            for f in (
+                self.cursor_rules_dir / f"{slug}.mdc",
+                self.opencode_agents_dir / f"{slug}.md",
+                self.openhands_skills_dir / f"{slug}.md",
+                self.openhands_microagents_dir / f"{slug}.md",
+            ):
+                if f.exists():
+                    try:
+                        f.unlink()
+                    except OSError:
+                        pass
 
         self.integrate()
         UI.success(f"{name} removed")
@@ -530,20 +574,33 @@ class Factory:
                 UI.warn(f"{tool}: not in PATH (some installs will fail)")
                 issues += 1
 
-        # 2. Catalog repos vs vendor
+        # 2. Catalog repos vs vendor (keyed by vendor_as so shared clones count once).
+        seen_vendors: set[str] = set()
         for name, url, pkg, method in self.repos:
-            vendor_path = self.vendor_dir / name
+            vendor_key = self.vendor_as.get(name, name)
+            if vendor_key in seen_vendors:
+                continue
+            seen_vendors.add(vendor_key)
+            vendor_path = self.vendor_dir / vendor_key
             if not vendor_path.exists():
-                UI.warn(f"{name}: enabled but not cloned — run `install`")
+                UI.warn(f"{vendor_key}: enabled but not cloned — run `install`")
                 issues += 1
 
-        # 3. Lockfile coverage
+        # 3. Lockfile coverage (by vendor key).
         locked = self.lock.get("repos", {})
-        enabled_names = {r[0] for r in self.repos}
-        for name in enabled_names:
-            if name not in locked:
-                UI.warn(f"{name}: missing from factory.lock.json")
+        for vendor_key in seen_vendors:
+            if vendor_key not in locked:
+                UI.warn(f"{vendor_key}: missing from factory.lock.json")
                 issues += 1
+
+        # 3b. New v1.5.0 surface directories existence.
+        for surface in [self.codex_skills_dir, self.opencode_agents_dir, self.openhands_skills_dir]:
+            if not surface.exists():
+                UI.warn(f"{surface.relative_to(self.target_dir)}: not present — run `integrate`")
+                issues += 1
+        if not (self.agent_dir / "INSTALL_MANIFEST.md").exists():
+            UI.warn("INSTALL_MANIFEST.md: not present — run `integrate`")
+            issues += 1
 
         # 4. Symlinks in .claude/skills
         if self.claude_skills_dir.exists():
@@ -601,28 +658,48 @@ class Factory:
     def setup_dirs(self):
         UI.header("Initializing Environment")
         dirs = [
-            self.vendor_dir, 
-            self.skills_dir, 
-            self.claude_skills_dir, 
-            self.shared_dir, 
-            self.agent_dir / "custom", 
+            self.vendor_dir,
+            self.skills_dir,
+            self.claude_skills_dir,
+            self.shared_dir,
+            self.agent_dir / "custom",
             self.agent_dir / "learned",
             self.agent_dir / "agents",
             self.agent_dir / "workflows",
             self.agent_dir / "tools",
             self.agent_dir / "rules",
-            self.agent_dir / "commands"
+            self.agent_dir / "commands",
+            # v1.5.0: extra coding-agent surfaces.
+            self.codex_skills_dir,
+            self.opencode_agents_dir,
+            self.openhands_skills_dir,
+            self.openhands_microagents_dir,
         ]
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
             UI.step(f"Mapped: {d.relative_to(self.target_dir)}", status="done")
 
     def git_sync(self, name, url, respect_lock=True):
-        """Clone or update a repo. If respect_lock and lock has a pinned SHA, checkout that SHA."""
-        dest = self.vendor_dir / name
-        locked_sha = (self.lock.get("repos", {}) or {}).get(name, {}).get("sha") if respect_lock else None
+        """Clone or update a repo. If respect_lock and lock has a pinned SHA, checkout that SHA.
 
-        msg = f"Syncing {name}" if (dest / ".git").exists() else f"Cloning {name}"
+        Honours `vendor_as`: when multiple catalog entries point at the same upstream
+        repo (one per subpath), they all resolve to the same vendor folder and the
+        actual clone happens once.
+        """
+        vendor_key = self.vendor_as.get(name, name)
+        dest = self.vendor_dir / vendor_key
+        locked_sha = (self.lock.get("repos", {}) or {}).get(vendor_key, {}).get("sha") if respect_lock else None
+
+        # If a sibling catalog entry already cloned this vendor folder in the
+        # current run, skip the spinner/clone and just refresh the lock pin.
+        if (dest / ".git").exists() and vendor_key in (self.lock.get("repos", {}) or {}) and respect_lock:
+            sha = self._git_head_sha(dest)
+            if sha:
+                self.lock.setdefault("repos", {})[vendor_key] = {"url": url, "sha": sha}
+            UI.info(f"{name} → shares vendor {vendor_key}")
+            return
+
+        msg = f"Syncing {vendor_key}" if (dest / ".git").exists() else f"Cloning {vendor_key}"
         with Spinner(msg):
             if (dest / ".git").exists():
                 if locked_sha:
@@ -640,7 +717,7 @@ class Factory:
 
         sha = self._git_head_sha(dest)
         if sha:
-            self.lock.setdefault("repos", {})[name] = {"url": url, "sha": sha}
+            self.lock.setdefault("repos", {})[vendor_key] = {"url": url, "sha": sha}
             short = sha[:7]
             UI.success(f"{name} @ {short}")
         else:
@@ -741,7 +818,8 @@ class Factory:
             target_agents_md.unlink()
 
         for name, url, pkg, method in self.repos:
-            src = self.vendor_dir / name
+            vendor_key = self.vendor_as.get(name, name)
+            src = self.vendor_dir / vendor_key
             subpath = self.subpaths.get(name)
             if method == "copy":
                 UI.step(f"Injecting {name}")
@@ -757,6 +835,9 @@ class Factory:
                     dest = self.skills_dir / skill_id
                     dest.mkdir(parents=True, exist_ok=True)
                     shutil.copytree(src_skill, dest, dirs_exist_ok=True, copy_function=safe_copy, symlinks=False)
+                    repo_entry = next((r for r in self.catalog_repos if r["name"] == name), None)
+                    if repo_entry:
+                        self._write_skill_metadata(skill_id, dest, repo_entry)
                     UI.success(f"Module Ready: {name} → {skill_id}")
                     continue
 
@@ -809,7 +890,11 @@ class Factory:
                         dest.rmdir()
                     except OSError:
                         pass
-                
+                elif dest.exists():
+                    repo_entry = next((r for r in self.catalog_repos if r["name"] == name), None)
+                    if repo_entry:
+                        self._write_skill_metadata(safe_name, dest, repo_entry)
+
                 UI.success(f"Module Ready: {name}")
             elif method == "npx":
                 if name == "bmad-code-org/BMAD-METHOD": self.run_npx_install(name)
@@ -898,6 +983,11 @@ class Factory:
             UI.success("Manifests: Updated")
 
         self.generate_configs(discovered_skills)
+        # v1.5.0: project into extra coding-agent surfaces and write manifest.
+        self._project_codex_skills(discovered_skills)
+        self._project_opencode_skills(discovered_skills)
+        self._project_openhands_skills(discovered_skills)
+        self._write_install_manifest(discovered_skills)
 
     def extract_metadata(self, file_path):
         content = file_path.read_text(errors='ignore')
@@ -989,14 +1079,47 @@ class Factory:
         self._project_cursor_skills(skills)
         UI.success("Workspace configuration: Optimized")
 
-    def _project_cursor_skills(self, skills):
-        """Project each discovered item into .cursor/skills/<id>/SKILL.md (native Cursor format).
+    # Shared skill-name slug: lowercase letters, digits, hyphens; max 64 chars.
+    # Matches Cursor + Codex SKILL.md spec; also safe for Opencode/OpenHands filenames.
+    # Spec: https://cursor.com/help/customization/skills + github.com/cursor/plugins.
+    _SAFE_NAME_RE = re.compile(r"[^a-z0-9-]+")
 
-        Cursor 2.3.35+ uses the same SKILL.md layout as Claude Code. Skills are auto-invoked
-        from `description`; agents and commands are wrapped with `disable-model-invocation: true`
-        so they only fire on explicit `/<id>` (matches Cursor's built-in /migrate-to-skills).
+    @classmethod
+    def _safe_skill_name(cls, raw_id: str) -> str:
+        slug = cls._SAFE_NAME_RE.sub("-", raw_id.lower()).strip("-")
+        slug = re.sub(r"-{2,}", "-", slug) or "skill"
+        return slug[:64].rstrip("-") or "skill"
+
+    # Legacy alias — keep for any external callers.
+    _cursor_safe_name = _safe_skill_name
+
+    def _project_cursor_skills(self, skills):
+        """Project each discovered item into both Cursor surfaces (2026 spec).
+
+        Cursor recognises two distinct surfaces:
+
+        1. `.cursor/skills/<name>/SKILL.md` — cross-agent Agent Skill spec
+           (cursor/plugins). Frontmatter is just `name` + `description`;
+           `name` must be lowercase-kebab and match the parent folder.
+           Skills activate on-demand from `description` matching.
+        2. `.cursor/rules/<name>.mdc` — native Cursor Rules. Flat `.mdc`
+           files (folder-based RULE.md does not work, per Cursor forum
+           bug report). Four activation modes — we use:
+             - Agent-requested (description only) for kind=skill
+             - Manual (no description/globs/alwaysApply, fired via @<name>)
+               for kind=agent / kind=command
+
+        Old fields removed:
+          - `disable-model-invocation` — Anthropic key, not Cursor; ignored.
+          - SKILL.md inside `.cursor/rules/` — Cursor does not parse that.
         """
         self.cursor_skills_dir.mkdir(parents=True, exist_ok=True)
+        self.cursor_rules_dir.mkdir(parents=True, exist_ok=True)
+
+        # Track names we wrote this run so we can prune stale .mdc files
+        # left over from previous installs / removed skills.
+        written_skill_names: set[str] = set()
+        written_rule_names: set[str] = set()
 
         for s in skills:
             src_path = s["path"]
@@ -1007,22 +1130,338 @@ class Factory:
 
             body = re.sub(r'^---\s*\n.*?\n---\s*\n', '', content, count=1, flags=re.DOTALL).lstrip()
             desc_raw = (s.get("desc") or "").strip()
-            desc = desc_raw.splitlines()[0].replace('"', "'") if desc_raw else f"{s.get('name', s['id'])}"
+            desc = desc_raw.splitlines()[0].replace('"', "'") if desc_raw else s.get("name", s["id"])
             kind = s.get("kind", "skill")
+            safe_name = self._safe_skill_name(s["id"])
 
-            fm_lines = [
-                "---",
-                f"name: {s['id']}",
-                f'description: "{desc}"',
-            ]
-            if kind in ("agent", "command"):
-                fm_lines.append("disable-model-invocation: true")
-            fm_lines.append("---")
-            frontmatter = "\n".join(fm_lines) + "\n\n"
-
-            skill_dir = self.cursor_skills_dir / s["id"]
+            # --- 1. Cross-agent Skill: .cursor/skills/<name>/SKILL.md ---
+            skill_fm = (
+                "---\n"
+                f"name: {safe_name}\n"
+                f'description: "{desc}"\n'
+                "---\n\n"
+            )
+            skill_dir = self.cursor_skills_dir / safe_name
             skill_dir.mkdir(parents=True, exist_ok=True)
-            (skill_dir / "SKILL.md").write_text(frontmatter + body)
+            (skill_dir / "SKILL.md").write_text(skill_fm + body)
+            written_skill_names.add(safe_name)
+
+            # --- 2. Native Cursor Rule: .cursor/rules/<name>.mdc ---
+            if kind == "skill":
+                # Agent-requested mode: description is the activation signal.
+                rule_fm = (
+                    "---\n"
+                    f'description: "{desc}"\n'
+                    "alwaysApply: false\n"
+                    "---\n\n"
+                )
+            else:
+                # Manual mode for agents/commands: no description, no globs,
+                # no alwaysApply — user invokes with @<name>.
+                rule_fm = (
+                    "---\n"
+                    "alwaysApply: false\n"
+                    "---\n\n"
+                )
+            (self.cursor_rules_dir / f"{safe_name}.mdc").write_text(rule_fm + body)
+            written_rule_names.add(safe_name)
+
+        # Prune stale .mdc files written by previous factory runs but no
+        # longer backed by a discovered skill. We only touch files that
+        # look like ours (sibling skill folder exists or naming matches);
+        # user-authored .mdc files are left alone.
+        if self.cursor_rules_dir.exists():
+            for mdc in self.cursor_rules_dir.glob("*.mdc"):
+                stem = mdc.stem
+                if stem in written_rule_names:
+                    continue
+                # Only prune if there is (or was) a matching .cursor/skills/<stem> folder.
+                if (self.cursor_skills_dir / stem).exists() and stem not in written_skill_names:
+                    try:
+                        mdc.unlink()
+                    except OSError:
+                        pass
+
+    def _strip_frontmatter(self, content: str) -> str:
+        """Drop leading `---\\n...\\n---\\n` block, return body."""
+        return re.sub(r'^---\s*\n.*?\n---\s*\n', '', content, count=1, flags=re.DOTALL).lstrip()
+
+    def _project_codex_skills(self, skills):
+        """Project to `.codex/skills/<name>/SKILL.md`.
+
+        Codex uses the same cross-agent SKILL.md spec as Cursor — see
+        https://developers.openai.com/codex/skills. Frontmatter is just
+        `name` + `description`; `name` is lowercase-kebab and matches the
+        folder name.
+        """
+        self.codex_skills_dir.mkdir(parents=True, exist_ok=True)
+        written: set[str] = set()
+
+        for s in skills:
+            try:
+                content = s["path"].read_text(errors='ignore')
+            except OSError:
+                continue
+            body = self._strip_frontmatter(content)
+            desc_raw = (s.get("desc") or "").strip()
+            desc = desc_raw.splitlines()[0].replace('"', "'") if desc_raw else s.get("name", s["id"])
+            safe_name = self._safe_skill_name(s["id"])
+            fm = f'---\nname: {safe_name}\ndescription: "{desc}"\n---\n\n'
+
+            skill_dir = self.codex_skills_dir / safe_name
+            skill_dir.mkdir(parents=True, exist_ok=True)
+            (skill_dir / "SKILL.md").write_text(fm + body)
+            written.add(safe_name)
+
+        # Prune sibling folders that no longer have a backing skill.
+        if self.codex_skills_dir.exists():
+            for child in self.codex_skills_dir.iterdir():
+                if child.is_dir() and child.name not in written:
+                    # Only prune if the folder looks like one of ours
+                    # (contains a single SKILL.md and nothing else).
+                    contents = list(child.iterdir())
+                    if len(contents) == 1 and contents[0].name == "SKILL.md":
+                        shutil.rmtree(child, ignore_errors=True)
+
+    def _project_opencode_skills(self, skills):
+        """Project to `.opencode/agents/<name>.md` + project-root AGENTS.md.
+
+        OpenCode reads flat `.md` files from `.opencode/agents/` and a
+        project-level `AGENTS.md` for rules. Docs: https://opencode.ai/docs/agents.
+        We map our `kind` field to OpenCode's `mode`:
+          skill   → mode: all     (model can invoke)
+          agent   → mode: subagent
+          command → mode: subagent + hidden: true (no @-autocomplete)
+        Permissions default to `ask` for `edit`/`bash` so the user reviews
+        side-effects per-skill.
+        """
+        self.opencode_agents_dir.mkdir(parents=True, exist_ok=True)
+        written: set[str] = set()
+
+        for s in skills:
+            try:
+                content = s["path"].read_text(errors='ignore')
+            except OSError:
+                continue
+            body = self._strip_frontmatter(content)
+            desc_raw = (s.get("desc") or "").strip()
+            desc = desc_raw.splitlines()[0].replace('"', "'") if desc_raw else s.get("name", s["id"])
+            kind = s.get("kind", "skill")
+            safe_name = self._safe_skill_name(s["id"])
+
+            mode = "all" if kind == "skill" else "subagent"
+            hidden_line = "hidden: true\n" if kind == "command" else ""
+            fm = (
+                "---\n"
+                f'description: "{desc}"\n'
+                f"mode: {mode}\n"
+                f"{hidden_line}"
+                "permission:\n"
+                "  edit: ask\n"
+                "  bash: ask\n"
+                "---\n\n"
+            )
+            (self.opencode_agents_dir / f"{safe_name}.md").write_text(fm + body)
+            written.add(safe_name)
+
+        # Prune stale agent files (only ones we likely wrote — slug pattern).
+        if self.opencode_agents_dir.exists():
+            for md in self.opencode_agents_dir.glob("*.md"):
+                if md.stem in written:
+                    continue
+                # Heuristic: only delete if file starts with `---\ndescription:`
+                # and contains `# AI-FACTORY:WRITTEN` … but we don't add that
+                # marker, so be conservative: only prune if a Cursor-skill
+                # sibling for the same name exists, indicating we wrote it.
+                if (self.cursor_skills_dir / md.stem).exists():
+                    try:
+                        md.unlink()
+                    except OSError:
+                        pass
+
+    def _project_openhands_skills(self, skills):
+        """Project to `.openhands/skills/<name>.md` (V1) + `.openhands/microagents/repo.md`.
+
+        OpenHands microagent format — flat `.md` files with YAML frontmatter.
+        Docs: https://docs.openhands.dev/openhands/usage/microagents/microagents-repo.
+        We mirror both the V1 `skills/` and V0 `microagents/` locations for
+        compatibility per the V1 release notes.
+        """
+        self.openhands_skills_dir.mkdir(parents=True, exist_ok=True)
+        self.openhands_microagents_dir.mkdir(parents=True, exist_ok=True)
+        written: set[str] = set()
+
+        for s in skills:
+            try:
+                content = s["path"].read_text(errors='ignore')
+            except OSError:
+                continue
+            body = self._strip_frontmatter(content)
+            desc_raw = (s.get("desc") or "").strip()
+            desc = desc_raw.splitlines()[0].replace('"', "'") if desc_raw else s.get("name", s["id"])
+            safe_name = self._safe_skill_name(s["id"])
+
+            # Trigger: skill slug + first noun-ish word of description for
+            # keyword matching. Don't use "always" — too noisy.
+            extra_trigger = ""
+            if desc_raw:
+                first_word = re.findall(r"[a-zA-Z][a-zA-Z-]{2,}", desc_raw)
+                if first_word and first_word[0].lower() != safe_name:
+                    extra_trigger = f"  - {first_word[0].lower()}\n"
+
+            fm = (
+                "---\n"
+                f"name: {safe_name}\n"
+                "type: knowledge\n"
+                "agent: CodeActAgent\n"
+                "triggers:\n"
+                f"  - {safe_name}\n"
+                f"{extra_trigger}"
+                "---\n\n"
+            )
+            (self.openhands_skills_dir / f"{safe_name}.md").write_text(fm + body)
+            written.add(safe_name)
+
+        # Prune stale skill files using the same conservative heuristic.
+        for md in self.openhands_skills_dir.glob("*.md"):
+            if md.stem not in written and (self.cursor_skills_dir / md.stem).exists():
+                try:
+                    md.unlink()
+                except OSError:
+                    pass
+
+    def _write_skill_metadata(self, skill_id: str, skill_dir: Path, repo_entry: dict):
+        """Write `.agent/skills/<id>/metadata.json` describing how the skill was installed.
+
+        Skips if a metadata.json exists that wasn't written by us (no
+        `_managed_by: ai-factory` marker), so user edits survive.
+        """
+        meta_path = skill_dir / "metadata.json"
+        if meta_path.exists():
+            try:
+                existing = json.loads(meta_path.read_text())
+                if existing.get("_managed_by") != "ai-factory":
+                    return
+            except (json.JSONDecodeError, OSError):
+                return
+
+        vendor_key = repo_entry.get("vendor_as", repo_entry["name"])
+        sha = (self.lock.get("repos", {}) or {}).get(vendor_key, {}).get("sha")
+        payload = {
+            "_managed_by": "ai-factory",
+            "name": skill_id,
+            "source": repo_entry.get("url", ""),
+            "subpath": repo_entry.get("subpath"),
+            "install_method": repo_entry.get("method", "copy"),
+            "installed_for": ["cloud-ai", "cursor", "codex", "opencode", "openhands"],
+            "lock_sha": (sha[:12] if sha else None),
+            "factory_version": VERSION,
+            "status": "installed",
+        }
+        meta_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+
+    def _write_install_manifest(self, skills):
+        """Write `.agent/INSTALL_MANIFEST.md` (human) + `.agent/install-manifest.json`.
+
+        Lists every discovered skill, source URL, install method, SHA pin,
+        and which target surfaces it landed in. Replaces previous content
+        on each run (bounded by managed-block markers).
+        """
+        from datetime import datetime
+        catalog_by_name = {r["name"]: r for r in self.catalog_repos}
+        locked = self.lock.get("repos", {}) or {}
+        generated_at = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+        # Map skill id back to catalog repo: prefer subpath match, else first repo using the name.
+        def find_repo_for_skill(skill_id: str) -> dict | None:
+            for r in self.catalog_repos:
+                sub = r.get("subpath", "")
+                if sub and Path(sub).name == skill_id:
+                    return r
+            for r in self.catalog_repos:
+                if skill_id in r["name"].split("/")[-1]:
+                    return r
+            return None
+
+        rows = []
+        json_skills = []
+        for s in sorted(skills, key=lambda x: x["id"]):
+            repo = find_repo_for_skill(s["id"])
+            if repo:
+                vendor_key = repo.get("vendor_as", repo["name"])
+                source_url = repo.get("url", "")
+                method = repo.get("method", "copy")
+                sha = locked.get(vendor_key, {}).get("sha", "")
+            else:
+                source_url = ""
+                method = "local"
+                sha = ""
+
+            skill_md_present = "✓" if s["path"].name in ("SKILL.md", "README.md") or s["path"].suffix == ".md" else "—"
+            rows.append({
+                "id": s["id"],
+                "kind": s.get("kind", "skill"),
+                "source": source_url,
+                "method": method,
+                "sha": sha[:7] if sha else "—",
+                "skill_md": skill_md_present,
+            })
+            json_skills.append({
+                "id": s["id"],
+                "name": s.get("name", s["id"]),
+                "kind": s.get("kind", "skill"),
+                "description": s.get("desc", ""),
+                "source": source_url,
+                "install_method": method,
+                "lock_sha": sha[:12] if sha else None,
+                "skill_file": str(s["path"].relative_to(self.target_dir)) if s["path"].is_relative_to(self.target_dir) else str(s["path"]),
+                "surfaces": ["cloud-ai", "cursor", "codex", "opencode", "openhands"],
+            })
+
+        # Human-readable Markdown manifest.
+        table_lines = ["| Skill | Kind | Source | Method | SHA | SKILL.md |", "|---|---|---|---|---|---|"]
+        for r in rows:
+            src_short = r["source"].rsplit("/", 1)[-1] if r["source"] else "—"
+            table_lines.append(f"| `{r['id']}` | {r['kind']} | {src_short} | {r['method']} | `{r['sha']}` | {r['skill_md']} |")
+
+        body = (
+            f"_Generated: {generated_at} by factory v{VERSION}_\n\n"
+            "## Target Directories\n"
+            "- `.agent/skills/` — shared agent skill source\n"
+            "- `.agent/.claude/skills/` — Claude Code (symlinks)\n"
+            "- `.cursor/skills/` + `.cursor/rules/` — Cursor (dual-surface)\n"
+            "- `.codex/skills/` — OpenAI Codex CLI\n"
+            "- `.opencode/agents/` — OpenCode (sst/opencode)\n"
+            "- `.openhands/skills/` + `.openhands/microagents/` — OpenHands\n\n"
+            "## Installed Skills\n\n"
+            + "\n".join(table_lines)
+            + "\n\n"
+            f"_{len(rows)} skill(s) installed._\n"
+        )
+
+        manifest_path = self.agent_dir / "INSTALL_MANIFEST.md"
+        self._write_managed_config(manifest_path, "AI Factory — Install Manifest", body)
+
+        # Machine-readable JSON manifest.
+        json_payload = {
+            "_managed_by": "ai-factory",
+            "factory_version": VERSION,
+            "generated_at": generated_at,
+            "target_directories": {
+                "cloud_ai": str(self.claude_skills_dir.relative_to(self.target_dir)),
+                "cursor_skills": str(self.cursor_skills_dir.relative_to(self.target_dir)),
+                "cursor_rules": str(self.cursor_rules_dir.relative_to(self.target_dir)),
+                "codex": str(self.codex_skills_dir.relative_to(self.target_dir)),
+                "opencode": str(self.opencode_agents_dir.relative_to(self.target_dir)),
+                "openhands_skills": str(self.openhands_skills_dir.relative_to(self.target_dir)),
+                "openhands_microagents": str(self.openhands_microagents_dir.relative_to(self.target_dir)),
+                "shared": str(self.skills_dir.relative_to(self.target_dir)),
+            },
+            "skills": json_skills,
+        }
+        (self.agent_dir / "install-manifest.json").write_text(
+            json.dumps(json_payload, indent=2, ensure_ascii=False) + "\n"
+        )
 
     def create_shared_placeholders(self):
         (self.shared_dir / "CONTEXT.md").write_text("# Project Context\n\n## Mission\nDefine objectives.")

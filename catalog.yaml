@@ -13,6 +13,10 @@
 #               When set, only that folder is installed (skips smart-routing
 #               and full-repo .md scan). Use for monorepos like
 #               anthropics/claude-code that contain many skills.
+#   vendor_as   (optional) Use this name for the local vendor folder instead
+#               of `name`. Multiple entries with the same `vendor_as` share
+#               ONE clone — useful when picking several `subpath`s from a
+#               single monorepo (e.g. vercel-labs/agent-skills).
 
 presets:
   software:  [base, software]
@@ -86,6 +90,70 @@ repos:
     tags: [software, frontend, design]
     description: Anthropic frontend-design skill — distinctive, production-grade UI guidelines
 
+  # --- vercel-labs/agent-skills (multi-skill monorepo) ---
+  # All entries below share one clone via vendor_as. Each picks a single
+  # SKILL.md folder via subpath. Repo: https://github.com/vercel-labs/agent-skills
+
+  - name: vercel-labs/agent-skills/web-design-guidelines
+    url: https://github.com/vercel-labs/agent-skills.git
+    method: copy
+    vendor_as: vercel-labs/agent-skills
+    subpath: skills/web-design-guidelines
+    tags: [software, frontend, design]
+    description: Vercel — review UI code for web interface best practices
+
+  - name: vercel-labs/agent-skills/react-best-practices
+    url: https://github.com/vercel-labs/agent-skills.git
+    method: copy
+    vendor_as: vercel-labs/agent-skills
+    subpath: skills/react-best-practices
+    tags: [software, frontend, react]
+    description: Vercel — 40+ React rules prioritized by impact
+
+  - name: vercel-labs/agent-skills/composition-patterns
+    url: https://github.com/vercel-labs/agent-skills.git
+    method: copy
+    vendor_as: vercel-labs/agent-skills
+    subpath: skills/composition-patterns
+    tags: [software, frontend, patterns]
+    description: Vercel — React component composition patterns
+
+  - name: vercel-labs/agent-skills/react-view-transitions
+    url: https://github.com/vercel-labs/agent-skills.git
+    method: copy
+    vendor_as: vercel-labs/agent-skills
+    subpath: skills/react-view-transitions
+    tags: [software, frontend, react]
+    description: Vercel — React View Transitions API patterns
+
+  - name: vercel-labs/agent-skills/vercel-optimize
+    url: https://github.com/vercel-labs/agent-skills.git
+    method: copy
+    vendor_as: vercel-labs/agent-skills
+    subpath: skills/vercel-optimize
+    tags: [software, performance, frontend]
+    description: Vercel — performance optimization guidelines for Vercel deploys
+
+  # --- anthropics/skills (multi-skill monorepo) ---
+  # Repo: https://github.com/anthropics/skills
+
+  - name: anthropics/skills/mcp-builder
+    url: https://github.com/anthropics/skills.git
+    method: copy
+    vendor_as: anthropics/skills
+    subpath: skills/mcp-builder
+    tags: [software, mcp, ai-infra]
+    description: Anthropic — build MCP servers in Python or TypeScript
+
+  - name: anthropics/skills/canvas-design
+    url: https://github.com/anthropics/skills.git
+    method: copy
+    vendor_as: anthropics/skills
+    subpath: skills/canvas-design
+    tags: [software, design, content]
+    description: Anthropic — generate PNG/PDF deliverables via code
+
+
   # --- Game Dev Pack ---
 
   - name: bmad-code-org/bmad-module-game-dev-studio
@@ -105,3 +173,24 @@ repos:
     method: copy
     tags: [gamedev, engine]
     description: Reference utilities for game engines
+
+# --- Skipped from the v1.5.0 prompt with rationale ---
+#
+# These three were in the original "install 9 skills" prompt but are
+# intentionally NOT added to the catalog:
+#
+# - shadcn-ui:
+#     Source ui.shadcn.com/docs/skills uses a closed format
+#     (`pnpm dlx skills add shadcn/ui` with no public SKILL.md).
+#     Partial overlap with nextlevelbuilder/ui-ux-pro-max-skill (above).
+#
+# - postgres-best-practices:
+#     Cited URL (mcpservers.org/.../supabase/postgres-best-practices) is
+#     a catalog listing, not a real source repo. No SKILL.md found in
+#     vercel-labs/agent-skills or Supabase's GitHub repos. Re-add when
+#     an actual source surfaces.
+#
+# - agent-skills CLI (vercel-labs/skills):
+#     This is itself an installer. factory.py occupies the same niche
+#     as the canonical installer for this project — adding it would be
+#     circular.
