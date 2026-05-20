@@ -1,43 +1,43 @@
-# Примечания к релизу v1.5.0-core (Release Notes)
+# Release Notes v1.5.0-core
 
-Мы рады представить версию **v1.5.0-core** экосистемы **My AI Factory**! Этот релиз сфокусирован на повышении стабильности управления навыками AI-агентов в рамках концепции **Zero-Dependency**, интеграции новых современных сред исполнения и исправлении критических ошибок при очистке проекций навыков.
-
----
-
-## 🚀 Ключевые нововведения
-
-### 1. Поддержка новых сред исполнения AI (Surfaces)
-Добавлена полноценная интеграция и автоматическое развертывание навыков в следующие современные среды исполнения агентов:
-* **Claude Code** (новая CLI-среда от Anthropic)
-* **OpenHands** (популярная платформа для разработки с открытым исходным кодом)
-
-Теперь все устанавливаемые навыки бесшовно проецируются и регистрируются в этих средах.
-
-### 2. Расширенные механизмы `vendor_as` и `subpath` в каталоге
-В `catalog.yaml` добавлена поддержка сложных интеграций из монорепозиториев:
-* Возможность загрузки конкретного подкаталога с помощью директивы `subpath` (например, для навыков из монорепозитория Anthropic).
-* Алиасинг вендоров с помощью директивы `vendor_as`, что позволяет гибко структурировать и переименовывать целевые папки плагинов.
+We are excited to introduce **v1.5.0-core** of the **My AI Factory** ecosystem! This release focuses on improving the stability of AI agent skill management under our **Zero-Dependency** philosophy, integrating modern execution environments (surfaces), and fixing critical issues in projecting and cleaning up installed skills.
 
 ---
 
-## 🛠 Исправления ошибок и улучшения стабильности
+## 🚀 Key Features
 
-### 1. Исправление критического бага удаления навыков (`cmd_remove`)
-* **Проблема**: Ранее при удалении навыка, установленного из `subpath` (например, `canvas-design` из пакета Anthropic), инсталлятор пытался найти и удалить директорию по сгенерированному безопасному имени (`anthropics-skills-canvas-design`). Физически же папка называлась `canvas-design`. Из-за этого папка плагина оставалась во всех поверхностях (surfaces), засоряя рабочее пространство.
-* **Решение**: Логика `cmd_remove` в `factory.py` была переработана. Теперь для элементов с `subpath` при определении имени целевой директории корректно используется `Path(subpath).name` (то есть `canvas-design`).
-* **Результат**: Полная и безопасная очистка всех 16 проекций удаляемых навыков во всех поддерживаемых средах (Cursor, Codex, OpenHands, OpenCode, Claude Code) без затрагивания соседних файлов.
+### 1. Support for Modern AI Surfaces
+Added out-of-the-box integration and automated prompt deployment for cutting-edge coding agent platforms:
+* **Claude Code** (the new powerful CLI developer tool by Anthropic)
+* **OpenHands** (popular open-source software engineering agent platform)
 
-### 2. Оптимизация каталога (`catalog.yaml`)
-* Из каталога полностью исключены невостребованные офисные навыки Anthropic (`docx`, `pdf`, `pptx`, `xlsx`) и вспомогательная утилита `skill-creator`. Это позволило сфокусировать экосистему на критически важных инструментах разработчика и ускорить валидацию.
-* Сохранена стабильная интеграция `vercel-labs` и `canvas-design` от Anthropic.
+All installed skills are now seamlessly projected and registered directly into these environments.
 
----
-
-## 🔒 Приверженность концепции Zero-Dependency
-Инсталлятор `factory.py` по-прежнему не использует ни одной сторонней Python-библиотеки (zero-dependency). Все операции с YAML, структурированием каталогов, обновлением конфигураций сред разработки и синтаксическим анализом выполняются силами стандартной библиотеки Python, гарантируя мгновенный запуск в любом окружении.
+### 2. Advanced `vendor_as` & `subpath` Catalogs
+Introduced support for complex monorepo configurations in `catalog.yaml`:
+* Git subfolder filtering using the `subpath` directive (e.g., pulling only the necessary skill subfolder from a monorepo).
+* Local cache sharing via the `vendor_as` directive, enabling multiple distinct skills to reuse a single repository clone, drastically saving time and disk footprint.
 
 ---
 
-## 🧪 Проверка и тестирование
-* Проведено полное дымовое тестирование с помощью сценария `tests/smoke_subpath.sh`.
-* Успешно выполнены интеграционные тесты очистки проекций, подтвердившие 100% стабильность работы команд установки и удаления.
+## 🛠 Bug Fixes & Stability Improvements
+
+### 1. Critical Skill Removal Cleanup Fix (`cmd_remove`)
+* **Problem**: Previously, when deleting a skill installed via `subpath` (like Anthropic's `canvas-design`), the installer looked for a directory matching the safe catalog name (`anthropics-skills-canvas-design`), whereas the actual folder on disk was named `canvas-design`. This left orphaned plugin files cluttering the coding surfaces.
+* **Solution**: The `cmd_remove` engine in `factory.py` has been redesigned to resolve folder structures using `Path(subpath).name` alongside default slug options.
+* **Outcome**: Safely cleanses **all 16 projection files and folders** across every supported surface (Cursor, Codex, OpenHands, OpenCode, Claude Code) without affecting other components.
+
+### 2. Streamlined Catalog (`catalog.yaml`)
+* Completely removed redundant office-related skills (`docx`, `pdf`, `pptx`, `xlsx`) and the experimental `skill-creator` generator tool.
+* Retained and optimized robust developer integrations: Anthropic MCP Builder (`mcp-builder`), Canvas UI design guidelines (`canvas-design`), and the full suite of Vercel best practices.
+
+---
+
+## 🔒 Zero-Dependency Commitment
+The `factory.py` core script remains strictly zero-dependency, relying exclusively on Python 3 standard library modules. YAML parsing, environment wiring, path routing, and configuration backups run instantly out-of-the-box in any environment.
+
+---
+
+## 🧪 Verification & Testing
+* Successfully validated through end-to-end integration smoke tests using `tests/smoke_subpath.sh`.
+* Verified robust projection cleanups via deep uninstallation verification scripts, guaranteeing stable execution.
