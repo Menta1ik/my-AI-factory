@@ -45,7 +45,6 @@ We are excited to introduce a major release **v1.5.0-core** that elevates the pr
    * **Now:** The `cmd_remove` logic has been redesigned. It resolves the actual directory name using `Path(subpath).name` (yielding `canvas-design`), guaranteeing **100% cleanup of all 16 file projections** across all connected IDEs and CLI platforms.
 
 4. **Streamlined Catalog & Focus on Developer Essentials:**
-   * Excluded redundant office utility skills (`docx`, `pdf`, `pptx`, `xlsx`) and the experimental `skill-creator` utility from `catalog.yaml`.
    * Maintained and polished production-ready developer tools, including Anthropic's MCP Builder (`mcp-builder`), Canvas UI renderer (`canvas-design`), Vercel standards, and elite design systems.
 
 5. **Pure Zero-Dependency Architecture:**
